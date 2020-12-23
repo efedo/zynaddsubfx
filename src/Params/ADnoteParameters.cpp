@@ -38,7 +38,7 @@ using rtosc::RtData;
 #undef rChangeCb
 #define rChangeCb if (obj->time) { obj->last_update_timestamp = obj->time->time(); }
 static const Ports voicePorts = {
-    {"wavetable-rt-params:T:F",
+    {"wavetable-params-changed:T:F:Tbb:Fbb",
         rDoc("retrieve realtime params for wavetable computation"),
         nullptr,
         [](const char *msg, RtData &d)
@@ -46,11 +46,35 @@ static const Ports voicePorts = {
             rObject *obj = (rObject *)d.obj;
             if(obj->waveTables)
             {
+                int nargs = rtosc_narguments(msg);
+                printf("WT: AD received /wavetable-params-changed...\n");
+                // refresh freqs and semantics if passed
+                if(nargs == 3)
+                {
+                    Tensor1<WaveTable::float32>* freqs = *(Tensor1<WaveTable::float32>**)rtosc_argument(msg, 1).b.data;
+                    Tensor1<WaveTable::IntOrFloat>* semantics = *(Tensor1<WaveTable::IntOrFloat>**)rtosc_argument(msg, 2).b.data;
+                    printf("WT: AD received new scale tensors %p (sz %d) %p (sz %d)\n", freqs, freqs->size(), semantics, semantics->size());
+                    obj->table->swapFreqs(*freqs);
+                    obj->table->swapSemantics(*semantics);
+                    d.reply("/free", "sb", "Tensor1<WaveTable::float32>", sizeof(Tensor1<WaveTable::float32>*), &freqs);
+                    d.reply("/free", "sb", "Tensor1<WaveTable::IntOrFloat>", sizeof(Tensor1<WaveTable::IntOrFloat>*), &semantics);
+                    obj->table->resize(Shape2{(std::size_t)obj->table->get_semantics()->size(), (std::size_t)obj->table->get_freqs()->size()}); // TODO: remove casts
+                }
+                // give MW all it needs to generate the new table
+                int write_pos = obj->table->write_pos_semantics();
+                int write_space = obj->table->write_space_semantics();
                 bool isFmSmp = rtosc_argument(msg, 0).T;
-                // reply all RT params required for computation
-                // in this case, it's only Presonance...
-                d.reply("/request-wavetable", isFmSmp ? "sTi" : "sFi",
-                        d.loc, isFmSmp ? 0 : (int)obj->Presonance);
+                d.reply("/request-wavetable", isFmSmp ? "sTiibbi" : "sFiibbi",
+                        d.loc, // OscilGen path
+                        // write position + length + tensors
+                        write_pos,
+                        write_space,
+                        sizeof(Tensor1<WaveTable::IntOrFloat>*),
+                        obj->table->get_semantics_addr(),
+                        sizeof(Tensor1<WaveTable::float32>*),
+                        obj->table->get_freqs_addr(),
+                        // wavetable parameters (curently, only Presonance)
+                        isFmSmp ? 0 : (int)obj->Presonance);
             }
             else
             {
@@ -61,18 +85,34 @@ static const Ports voicePorts = {
             }
         }
     },
-    {"set-wavetable:bT:bF",
+    {"set-waves:Tib:Fib",
         rDoc("inform voice to update oscillator table"), NULL,
         [](const char *msg, RtData &d)
         {
+            // take the passed waves
+            // TODO: somehow let ADnote know that the waves can be used now!! (read pointer)
             rObject *obj = (rObject *)d.obj;
-            WaveTable* unusedWt = *(WaveTable**)rtosc_argument(msg, 0).b.data;
-            bool isFmSmp = rtosc_argument(msg, 1).T;
-            WaveTable*& usedWt = isFmSmp ? obj->tableFm : obj->table;
-            std::swap(unusedWt, usedWt);
-            // ^ no need for atomic swap - Master is single-threaded
-            d.reply("/free", "sb", "WaveTable", sizeof(WaveTable*), &unusedWt);
-            printf("set ad note parameters, table pointer: %p\n", usedWt);
+
+            bool isFmSmp = rtosc_argument(msg, 0).T;
+            int sem_idx = rtosc_argument(msg, 1).i;
+            Tensor2<WaveTable::float32>* waves = *(Tensor2<WaveTable::float32>**)rtosc_argument(msg, 2).b.data;
+
+            WaveTable*& wt = isFmSmp ? obj->tableFm : obj->table;
+
+            printf("WT: AD semantic %d received %d waves\n", sem_idx, waves->size());
+            // the received Tensor2 may have different size then ours,
+            // so take what we need, bit by bit
+            for(int freq_idx = 0; freq_idx < waves->size(); ++freq_idx)
+            {
+                Tensor1<WaveTable::float32>& unusedWave = (*waves)[freq_idx];
+                wt->swapDataAt(sem_idx, freq_idx, unusedWave);
+            }
+
+            // recycle the packaging
+            // this will also free the contained Tensor1 (which are useless after the swap)
+            d.reply("/free", "sb", "Tensor2<WaveTable::float32>", sizeof(Tensor2<WaveTable::float32>*), &waves);
+
+            printf("set ad note parameters\n");
         }},
     //Send Messages To Oscillator Realtime Table
     {"OscilSmp/", rDoc("Primary Oscillator"),
