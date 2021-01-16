@@ -128,6 +128,7 @@ protected:
 };
 
 //! Ringbuffer without buffer - only size, reader and writer
+//! @invariant r<=w_delayed<=w<r (in a cyclic sense)
 class AbstractRingbuffer
 {
 public:
@@ -149,7 +150,7 @@ public:
 #endif
         // "r->w" > 0 => OK, can read
         // "r->w" == 0 => can not read
-        return (w - r + m_size) % m_size;
+        return (w_delayed - r + m_size) % m_size;
     }
 
 #ifdef ATOMICS
@@ -166,19 +167,26 @@ public:
         // "w->r" (ringwise) > 1 => OK, can write
         // "w->r" (ringwise) == 1 => write would cause "r==w" (increase read space) => can not read
         // "w->r" (ringwise) == 0 => forbidden (see case ==1)
-        printf("ws: r w s = %d %d %d\n", r, w, m_size);
         return ((r-1) - w + m_size) % m_size;
+    }
+
+    int write_space_delayed() const
+    {
+        // same reasoning as for read_space
+        return (w - w_delayed + m_size) % m_size;
     }
 
 #ifdef ATOMICS
     void inc_write_pos() { next_write.store((1+next_write.load()) % m_size); }
     void inc_read_pos() { next_read.store((1+next_read.load()) % m_size); }
 #else
-    void inc_write_pos() { w = (1+w) % m_size; }
-    void inc_read_pos() { r = (1+r) % m_size; }
+    void inc_write_pos(int amnt) { assert(amnt <= write_space()); w = (amnt+w) % m_size; }
+    void inc_write_pos_delayed(int amnt = 1) { assert(amnt <= write_space_delayed()); w_delayed = (amnt+w_delayed) % m_size; }
+    void inc_read_pos() { assert(m_size == 1 || 1 <= read_space()); r = (1+r) % m_size; }
 
     int read_pos() const { return r; }
     int write_pos() const { return w; }
+    int write_pos_delayed() const { return w_delayed; }
 #endif
 
     void resize(int newsize)
@@ -187,7 +195,7 @@ public:
         next_write.store(0);
         next_read.store(0);
 #else
-        r = w = 0;
+        r = w = w_delayed = 0;
 #endif
         m_size = newsize;
     }
@@ -199,7 +207,15 @@ private:
     std::atomic<int> next_write; // next new wavetable will be insterted here
     std::atomic<int> next_read; // next wavetable for ADnote use
 #else
-    int r, w;
+    // Invariant: r<=w_delayed<=w<r (in a cyclic sense)
+    //! read position, marks next element to read. can read until w_delayed.
+    int r;
+    //! write position, marks the element that will be written to next (may be
+    //! reserved for write already if w_delayed < w). can write until w.
+    int w_delayed;
+    //! write position, marks the element that will be reserved for a write
+    //! next (but maybe not yet written). can write until r-1.
+    int w;
 #endif
     int m_size;
 };
@@ -463,10 +479,13 @@ public:
     int size_semantics() const { return data.size(); }
     int read_space_semantics() const { return data.read_space(); }
     int write_space_semantics() const { return data.write_space(); }
+    int write_space_delayed_semantics() const { return data.write_space_delayed(); }
     int read_pos_semantics() const { return data.read_pos(); }
     int write_pos_semantics() const { return data.write_pos(); }
+    int write_pos_delayed_semantics() const { return data.write_pos_delayed(); }
     void inc_read_pos_semantics() { data.inc_read_pos(); }
-    void inc_write_pos_semantics() { data.inc_write_pos(); }
+    void inc_write_pos_semantics(int amnt) { data.inc_write_pos(amnt); }
+    void inc_write_pos_delayed_semantics() { data.inc_write_pos_delayed(); }
 
     const Tensor1<IntOrFloat>* const* get_semantics_addr() const { return &semantics_addr; }
     const Tensor1<float32>* const* get_freqs_addr() const { return &freqs_addr; }

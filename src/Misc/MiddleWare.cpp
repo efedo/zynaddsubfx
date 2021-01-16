@@ -2108,33 +2108,51 @@ static rtosc::Ports middlewareReplyPorts = {
         rEnd},
     {"broadcast:", 0, 0, rBegin; impl.broadcast = true; rEnd},
     {"forward:", 0, 0, rBegin; impl.forward = true; rEnd},
-    {"request-wavetable:sTiibbi:sFiibbi", 0, 0,
+    {"request-wavetable:sTiibbi:sFiibbi:iiiTiibbi:iiiFiibbi", 0, 0,
         // add request to queue, allow new requests for this OscilGen again
         rBegin;
-        int part, kit, voice;
 
         printf("WT: MW received wt-request, queuing...\n");
 
         MiddleWareImpl::waveTablesToGenerateStruct wt2g;
-        wt2g.voicePath     = rtosc_argument(msg, 0).s; // it's *not yet* the voice path
-        wt2g.isFm      = rtosc_argument(msg, 1).T;
-        wt2g.write_pos  = rtosc_argument(msg, 2).i;
-        wt2g.write_space= rtosc_argument(msg, 3).i;
-        wt2g.semantics = *(Tensor1<WaveTable::IntOrFloat>**)rtosc_argument(msg, 4).b.data;
-        wt2g.freqs = *(Tensor1<WaveTable::float32>**)rtosc_argument(msg, 5).b.data;
-        wt2g.presonance = rtosc_argument(msg, 6).i;
+        int part, kit, voice;
 
-        bool res = idsFromMsg(wt2g.voicePath.c_str(), &part, &kit, &voice);
-        assert(res);
+        unsigned offs;
+        // the first 1 or 3 params are either s or i
+        // in either case, fill wt2g.voicePath and part/kit/voice
+        if(rtosc_type(msg, 0) == 's')
+        {
+            // fill wt2g.voicePath
+            wt2g.voicePath = rtosc_argument(msg, 0).s; // it's *not yet* the voice path
+            string::size_type pos = wt2g.voicePath.find("wavetable-params-changed");
+            assert(pos == wt2g.voicePath.length() - strlen("wavetable-params-changed"));
+            wt2g.voicePath.resize(pos); // *now* it's the voice location
+            // fill p/k/v
+            bool res = idsFromMsg(wt2g.voicePath.c_str(), &part, &kit, &voice);
+            assert(res);
+            offs = 1;
+        }
+        else
+        {
+            // fill p/k/v
+            part = rtosc_argument(msg, 0).i;
+            kit = rtosc_argument(msg, 1).i;
+            voice = rtosc_argument(msg, 2).i;
+            // fill wt2g.voicePath
+            wt2g.voicePath = buildVoiceParMsg(&part, &kit, &voice) + "/";
+            offs = 3;
+        }
+        wt2g.isFm      = rtosc_argument(msg, offs+0).T;
+        wt2g.write_pos  = rtosc_argument(msg, offs+1).i;
+        wt2g.write_space= rtosc_argument(msg, offs+2).i;
+        wt2g.semantics = *(Tensor1<WaveTable::IntOrFloat>**)rtosc_argument(msg, offs+3).b.data;
+        wt2g.freqs = *(Tensor1<WaveTable::float32>**)rtosc_argument(msg, offs+4).b.data;
+        wt2g.presonance = rtosc_argument(msg, offs+5).i;
+
         // (TODO: might be done later when handling the queue)
         impl.waveTableRequestHandler.receivedAdPars(part, kit, voice, wt2g.isFm);
 
-        string::size_type pos = wt2g.voicePath.find("wavetable-params-changed");
-        assert(pos == wt2g.voicePath.length() - strlen("wavetable-params-changed"));
-        wt2g.voicePath.resize(pos); // *now* it's the voice location
-
         impl.addWaveTableToGenerate(std::move(wt2g));
-
         rEnd},
     {"rt_paste_done:s", 0, 0,
         rBegin;

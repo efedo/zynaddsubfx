@@ -40,9 +40,11 @@ class TensorTest : public CxxTest::TestSuite
             // r=w=0
             TS_ASSERT_EQUALS(4, rb.size());
             TS_ASSERT_EQUALS(0, rb.read_space());
+            TS_ASSERT_EQUALS(0, rb.write_space_delayed());
             TS_ASSERT_EQUALS(3, rb.write_space());
 
-            rb.inc_write_pos(); rb.inc_write_pos();
+            rb.inc_write_pos(2); TS_ASSERT_EQUALS(2, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(2);
             // r=0, w=2
             TS_ASSERT_EQUALS(2, rb.read_space());
             TS_ASSERT_EQUALS(1, rb.write_space());
@@ -52,12 +54,14 @@ class TensorTest : public CxxTest::TestSuite
             TS_ASSERT_EQUALS(0, rb.read_space());
             TS_ASSERT_EQUALS(3, rb.write_space());
 
-            rb.inc_write_pos(); rb.inc_write_pos();
+            rb.inc_write_pos(2); TS_ASSERT_EQUALS(2, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(2);
             // r=2, w=0
             TS_ASSERT_EQUALS(2, rb.read_space());
             TS_ASSERT_EQUALS(1, rb.write_space());
 
-            rb.inc_write_pos();
+            rb.inc_write_pos(1); TS_ASSERT_EQUALS(1, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(1);
             // r=2, w=1
             TS_ASSERT_EQUALS(3, rb.read_space());
             TS_ASSERT_EQUALS(0, rb.write_space());
@@ -67,7 +71,8 @@ class TensorTest : public CxxTest::TestSuite
             TS_ASSERT_EQUALS(1, rb.read_space());
             TS_ASSERT_EQUALS(2, rb.write_space());
 
-            rb.inc_write_pos(); rb.inc_write_pos();
+            rb.inc_write_pos(2); TS_ASSERT_EQUALS(2, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(2);
             // r=0, w=3
             TS_ASSERT_EQUALS(3, rb.read_space());
             TS_ASSERT_EQUALS(0, rb.write_space());
@@ -77,7 +82,8 @@ class TensorTest : public CxxTest::TestSuite
             TS_ASSERT_EQUALS(1, rb.read_space());
             TS_ASSERT_EQUALS(2, rb.write_space());
 
-            rb.inc_write_pos();
+            rb.inc_write_pos(1); TS_ASSERT_EQUALS(1, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(1);
             // r=2, w=0
             TS_ASSERT_EQUALS(2, rb.read_space());
             TS_ASSERT_EQUALS(1, rb.write_space());
@@ -87,12 +93,14 @@ class TensorTest : public CxxTest::TestSuite
             TS_ASSERT_EQUALS(0, rb.read_space());
             TS_ASSERT_EQUALS(3, rb.write_space());
 
-            rb.inc_write_pos(); rb.inc_write_pos();
+            rb.inc_write_pos(2); TS_ASSERT_EQUALS(2, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(2);
             // r=0, w=2
             TS_ASSERT_EQUALS(2, rb.read_space());
             TS_ASSERT_EQUALS(1, rb.write_space());
 
-            rb.inc_write_pos();
+            rb.inc_write_pos(1); TS_ASSERT_EQUALS(1, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(1);
             // r=0, w=3
             TS_ASSERT_EQUALS(3, rb.read_space());
             TS_ASSERT_EQUALS(0, rb.write_space());
@@ -102,7 +110,8 @@ class TensorTest : public CxxTest::TestSuite
             TS_ASSERT_EQUALS(2, rb.read_space());
             TS_ASSERT_EQUALS(1, rb.write_space());
 
-            rb.inc_write_pos();
+            rb.inc_write_pos(1); TS_ASSERT_EQUALS(1, rb.write_space_delayed());
+            rb.inc_write_pos_delayed(1);
             // r=1, w=0
             TS_ASSERT_EQUALS(3, rb.read_space());
             TS_ASSERT_EQUALS(0, rb.write_space());
