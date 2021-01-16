@@ -68,7 +68,8 @@ static const Ports voicePorts = {
                 printf("WT: AD WT %p requesting %d new 2D Tensors at position %d...\n",
                        wt, write_space, write_pos);
                 d.reply("/request-wavetable", isFmSmp ? "sTiibbi" : "sFiibbi",
-                        d.loc, // OscilGen path
+                        // path to this voice (T+F give the OscilGen of this voice)
+                        d.loc,
                         // write position + length + tensors
                         write_pos,
                         write_space,
