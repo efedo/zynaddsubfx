@@ -194,13 +194,6 @@ public:
 
     int size() const { return m_size; }
 
-    void swapWith(AbstractRingbuffer& other)
-    {
-        std::swap(m_size, other.m_size);
-        std::swap(r, other.r);
-        std::swap(w, other.w);
-    }
-
     bool operator==(const AbstractRingbuffer& other) const {
         return r == other.r && w == other.w && m_size == other.m_size;
     }
@@ -442,12 +435,6 @@ public:
 
 /*    template<std::size_t N2, class X2>
     friend void pointer_swap(Tensor<N2, X2>&, Tensor<N2, X2>&);*/
-
-    void swapWith(Tensor3ForWaveTable& other)
-    {
-        base_type::swapWith(other);
-        AbstractRingbuffer::swapWith(other);
-    }
 };
 
 /**
