@@ -47,6 +47,8 @@ static const Ports voicePorts = {
             if(obj->waveTables)
             {
                 int nargs = rtosc_narguments(msg);
+                bool isFmSmp = rtosc_argument(msg, 0).T;
+                WaveTable*& wt = isFmSmp ? obj->tableFm : obj->table;
                 printf("WT: AD received /wavetable-params-changed...\n");
                 // refresh freqs and semantics if passed
                 if(nargs == 3)
@@ -54,25 +56,26 @@ static const Ports voicePorts = {
                     Tensor1<WaveTable::float32>* freqs = *(Tensor1<WaveTable::float32>**)rtosc_argument(msg, 1).b.data;
                     Tensor1<WaveTable::IntOrFloat>* semantics = *(Tensor1<WaveTable::IntOrFloat>**)rtosc_argument(msg, 2).b.data;
                     printf("WT: AD received new scale tensors %p (sz %d) %p (sz %d)\n", freqs, freqs->size(), semantics, semantics->size());
-                    obj->table->swapFreqs(*freqs);
-                    obj->table->swapSemantics(*semantics);
+                    wt->swapFreqs(*freqs);
+                    wt->swapSemantics(*semantics);
                     d.reply("/free", "sb", "Tensor1<WaveTable::float32>", sizeof(Tensor1<WaveTable::float32>*), &freqs);
                     d.reply("/free", "sb", "Tensor1<WaveTable::IntOrFloat>", sizeof(Tensor1<WaveTable::IntOrFloat>*), &semantics);
-                    obj->table->resize(Shape2{(std::size_t)obj->table->get_semantics()->size(), (std::size_t)obj->table->get_freqs()->size()}); // TODO: remove casts
+                    wt->resize(Shape2{(std::size_t)wt->get_semantics()->size(), (std::size_t)wt->get_freqs()->size()}); // TODO: remove casts
                 }
                 // give MW all it needs to generate the new table
-                int write_pos = obj->table->write_pos_semantics();
-                int write_space = obj->table->write_space_semantics();
-                bool isFmSmp = rtosc_argument(msg, 0).T;
+                int write_pos = wt->write_pos_semantics();
+                int write_space = wt->write_space_semantics();
+                printf("WT: AD WT %p requesting %d new 2D Tensors at position %d...\n",
+                       wt, write_space, write_pos);
                 d.reply("/request-wavetable", isFmSmp ? "sTiibbi" : "sFiibbi",
                         d.loc, // OscilGen path
                         // write position + length + tensors
                         write_pos,
                         write_space,
                         sizeof(Tensor1<WaveTable::IntOrFloat>*),
-                        obj->table->get_semantics_addr(),
+                        wt->get_semantics_addr(),
                         sizeof(Tensor1<WaveTable::float32>*),
-                        obj->table->get_freqs_addr(),
+                        wt->get_freqs_addr(),
                         // wavetable parameters (curently, only Presonance)
                         isFmSmp ? 0 : (int)obj->Presonance);
             }
@@ -99,7 +102,8 @@ static const Ports voicePorts = {
 
             WaveTable*& wt = isFmSmp ? obj->tableFm : obj->table;
 
-            printf("WT: AD semantic %d received %d waves\n", sem_idx, waves->size());
+            printf("WT: AD WT %p: semantic %d received %d waves\n", wt, sem_idx, waves->size());
+
             // the received Tensor2 may have different size then ours,
             // so take what we need, bit by bit
             for(int freq_idx = 0; freq_idx < waves->size(); ++freq_idx)
