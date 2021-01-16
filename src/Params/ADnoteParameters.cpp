@@ -102,7 +102,17 @@ static const Ports voicePorts = {
 
             WaveTable*& wt = isFmSmp ? obj->tableFm : obj->table;
 
-            printf("WT: AD WT %p: semantic %d received %d waves\n", wt, sem_idx, waves->size());
+            assert(wt->write_space_semantics() > 0);
+            if(wt->write_pos_semantics() != sem_idx)
+            {
+                // since we request the wavetables in order, and the
+                // communication with MiddleWare is lossless, this should
+                // imply a calculation error
+                printf("WARNING: MW sent (out-dated?) semantic \"%d\", "
+                       "but the next required semantic is \"%d\" - ignoring!\n",
+                       sem_idx, wt->write_pos_semantics());
+                assert(false); // in debug mode, just abort now
+            }
 
             // the received Tensor2 may have different size then ours,
             // so take what we need, bit by bit
@@ -112,11 +122,10 @@ static const Ports voicePorts = {
                 wt->swapDataAt(sem_idx, freq_idx, unusedWave);
             }
 
+            wt->inc_write_pos_semantics();
             // recycle the packaging
             // this will also free the contained Tensor1 (which are useless after the swap)
             d.reply("/free", "sb", "Tensor2<WaveTable::float32>", sizeof(Tensor2<WaveTable::float32>*), &waves);
-
-            printf("set ad note parameters\n");
         }},
     //Send Messages To Oscillator Realtime Table
     {"OscilSmp/", rDoc("Primary Oscillator"),

@@ -477,6 +477,8 @@ public:
     int write_space_semantics() const { return data.write_space(); }
     int read_pos_semantics() const { return data.read_pos(); }
     int write_pos_semantics() const { return data.write_pos(); }
+    void inc_read_pos_semantics() { data.inc_read_pos(); }
+    void inc_write_pos_semantics() { data.inc_write_pos(); }
 
     const Tensor1<IntOrFloat>* const* get_semantics_addr() const { return &semantics_addr; }
     const Tensor1<float32>* const* get_freqs_addr() const { return &freqs_addr; }
