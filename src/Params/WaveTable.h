@@ -194,10 +194,6 @@ public:
 
     int size() const { return m_size; }
 
-    bool operator==(const AbstractRingbuffer& other) const {
-        return r == other.r && w == other.w && m_size == other.m_size;
-    }
-
 private:
 #ifdef ATOMICS
     std::atomic<int> next_write; // next new wavetable will be insterted here
@@ -424,14 +420,6 @@ public:
         AbstractRingbuffer::operator=(std::move(other));
         return *this;
     }
-
-    bool operator==(Tensor3ForWaveTable& other) const
-    {
-        return base_type::operator==(other) && AbstractRingbuffer::operator==(other);
-    }
-
-    bool operator!=(Tensor3ForWaveTable& other) const {
-        return !operator==(other); }
 
 /*    template<std::size_t N2, class X2>
     friend void pointer_swap(Tensor<N2, X2>&, Tensor<N2, X2>&);*/
