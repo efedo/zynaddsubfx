@@ -1516,36 +1516,41 @@ void ADnoteVoiceParam::getfromXML(XMLwrapper& xml, unsigned nvoice)
 void ADnoteParameters::requestWavetables(rtosc::ThreadLink* bToU, int part, int kit)
 {
     for (std::size_t v = 0; v < NUM_VOICES; ++v)
+    {
         VoicePar[v].requestWavetables(bToU, part, kit, v);
+    }
 }
 
 void ADnoteVoiceParam::requestWavetables(rtosc::ThreadLink* bToU, int part, int kit, int voice)
 {
     const bool notFmAndFm[] = { false, true };
-    for(bool isFmSmp : notFmAndFm)
+    if(Enabled)
     {
-        // give MW all it needs to generate the new table
-        WaveTable* wt = isFmSmp ? tableFm : table;
-        int write_space = wt->write_space_semantics();
-        if(write_space)
+        for(bool isFmSmp : notFmAndFm)
         {
-            int write_pos = wt->write_pos_semantics();
-            printf("WT: AD WT %p requesting %d new 2D Tensors at position %d (reason: too many consumed)...\n",
-                   wt, write_space, write_pos);
-            bToU->write("/request-wavetable", isFmSmp ? "iiiTiibbi" : "iiiFiibbi",
-                    // path to this voice
-                    part, kit, voice,
-                    // write position + length + tensors
-                    write_pos,
-                    write_space,
-                    sizeof(Tensor1<WaveTable::IntOrFloat>*),
-                    wt->get_semantics_addr(),
-                    sizeof(Tensor1<WaveTable::float32>*),
-                    wt->get_freqs_addr(),
-                    // wavetable parameters (curently, only Presonance)
-                    isFmSmp ? 0 : (int)Presonance);
-            // tell the ringbuffer that we can not write more
-            wt->inc_write_pos_semantics(write_space);
+            // give MW all it needs to generate the new table
+            WaveTable* wt = isFmSmp ? tableFm : table;
+            int write_space = wt->write_space_semantics();
+            if(write_space)
+            {
+                int write_pos = wt->write_pos_semantics();
+                printf("WT: AD WT %p requesting %d new 2D Tensors at position %d (reason: too many consumed)...\n",
+                       wt, write_space, write_pos);
+                bToU->write("/request-wavetable", isFmSmp ? "iiiTiibbi" : "iiiFiibbi",
+                        // path to this voice
+                        part, kit, voice,
+                        // write position + length + tensors
+                        write_pos,
+                        write_space,
+                        sizeof(Tensor1<WaveTable::IntOrFloat>*),
+                        wt->get_semantics_addr(),
+                        sizeof(Tensor1<WaveTable::float32>*),
+                        wt->get_freqs_addr(),
+                        // wavetable parameters (curently, only Presonance)
+                        isFmSmp ? 0 : (int)Presonance);
+                // tell the ringbuffer that we can not write more
+                wt->inc_write_pos_semantics(write_space);
+            }
         }
     }
 }
